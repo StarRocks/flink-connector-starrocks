@@ -25,6 +25,7 @@ import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
 import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
+import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.util.concurrent.ExecutorThreadFactory;
 import org.slf4j.Logger;
@@ -36,15 +37,20 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class StarRocksSinkManager implements Serializable {
@@ -82,7 +88,7 @@ public class StarRocksSinkManager implements Serializable {
     private static final String COUNTER_TOTAL_FLUSH_COST_TIME = "totalFlushTimeNs";
     private static final String COUNTER_TOTAL_FLUSH_SUCCEEDED_TIMES = "totalFlushSucceededTimes";
     private static final String COUNTER_TOTAL_FLUSH_FAILED_TIMES = "totalFlushFailedTimes";
-    private static final String HISTOGRAM_FLUSH_TIME= "flushTimeNs";
+    private static final String HISTOGRAM_FLUSH_TIME = "flushTimeNs";
     private static final String HISTOGRAM_OFFER_TIME_NS = "offerTimeNs";
 
     // from stream load result
@@ -129,9 +135,9 @@ public class StarRocksSinkManager implements Serializable {
         validateTableStructure(schema);
         String version = starrocksQueryVisitor.getStarRocksVersion();
         this.starrocksStreamLoadVisitor = new StarRocksStreamLoadVisitor(
-                sinkOptions,
-                null == schema ? new String[]{} : schema.getFieldNames(),
-                version.length() > 0 && !version.trim().startsWith("1.")
+            sinkOptions,
+            null == schema ? new String[]{} : schema.getFieldNames(),
+            version.length() > 0 && !version.trim().startsWith("1.")
         );
     }
 
@@ -214,7 +220,9 @@ public class StarRocksSinkManager implements Serializable {
     public final synchronized void writeRecords(String database, String table, String... records) throws IOException {
         checkFlushException();
         try {
-            if (0 == records.length) return;
+            if (0 == records.length) {
+                return;
+            }
             String bufferKey = String.format("%s,%s", database, table);
             StarRocksSinkBufferEntity bufferEntity = bufferMap.computeIfAbsent(bufferKey, k -> new StarRocksSinkBufferEntity(database, table, sinkOptions.getLabelPrefix()));
             for (String record : records) {
@@ -337,7 +345,7 @@ public class StarRocksSinkManager implements Serializable {
                 if (i >= sinkOptions.getSinkMaxRetries()) {
                     throw e;
                 }
-                if (e instanceof StarRocksStreamLoadFailedException && ((StarRocksStreamLoadFailedException)e).needReCreateLabel()) {
+                if (e instanceof StarRocksStreamLoadFailedException && ((StarRocksStreamLoadFailedException) e).needReCreateLabel()) {
                     String oldLabel = flushData.getLabel();
                     flushData.reGenerateLabel();
                     LOG.warn(String.format("Batch label changed from [%s] to [%s]", oldLabel, flushData.getLabel()));
@@ -360,7 +368,7 @@ public class StarRocksSinkManager implements Serializable {
         checkFlushException();
     }
 
-    void offer(StarRocksSinkBufferEntity bufferEntity) throws InterruptedException{
+    void offer(StarRocksSinkBufferEntity bufferEntity) throws InterruptedException {
         if (!flushThreadAlive) {
             LOG.info(String.format("Flush thread already exit, ignore offer request for label[%s]", bufferEntity.getLabel()));
             return;
@@ -426,20 +434,57 @@ public class StarRocksSinkManager implements Serializable {
             sinkOptions.enableUpsertDelete();
         }
 
-        if (sinkOptions.hasColumnMappingProperty()) {
-            return;
+        if (this.sinkOptions.getSinkPartialUpdate()) {
+            if (!sinkOptions.hasColumnMappingProperty()) {
+                throw new IllegalArgumentException("Column mapping must set when enable partial update.");
+            }
+            this.checkPartialColumnMode(flinkSchema, rows);
+        } else {
+            this.checkAllColumnMode(flinkSchema, rows);
         }
-        if (flinkSchema.getFieldCount() != rows.size()) {
-            throw new IllegalArgumentException("Fields count of "+this.sinkOptions.getTableName()+" mismatch. \nflinkSchema["
-                    +flinkSchema.getFieldNames().length+"]:"
-                    +Arrays.asList( flinkSchema.getFieldNames()).stream().collect(Collectors.joining(","))
-                    +"\n realTab["+rows.size()+"]:"
-                    +rows.stream().map((r)-> String.valueOf(r.get("COLUMN_NAME"))).collect(Collectors.joining(",")));
+    }
+
+    private void checkPartialColumnMode(TableSchema flinkSchema, List<Map<String, Object>> actuallyRows) {
+        int actuallyRowSize = actuallyRows.size();
+        Set<TableColumn> flinkCols = new HashSet<>(flinkSchema.getTableColumns());
+        if (flinkCols.size() > actuallyRowSize) {
+            throw new IllegalArgumentException("Define unknown column, should check your flink sql field. actually column is " + actuallyRowSize +
+                " flinkCols column size is " + flinkCols.size());
+        }
+        Set<String> colNames = new HashSet<>();
+        Map<String, LogicalTypeRoot> flinkSchemaMap = new HashMap<>(flinkCols.size());
+        flinkCols.forEach(col -> {
+            String columnName = col.getName().toLowerCase();
+            flinkSchemaMap.put(columnName, col.getType().getLogicalType().getTypeRoot());
+            colNames.add(columnName);
+        });
+        actuallyRows.forEach(stringObjectMap -> {
+            String actStarrocksField = stringObjectMap.get("COLUMN_NAME").toString().toLowerCase();
+            String actStarrocksType = stringObjectMap.get("DATA_TYPE").toString().toLowerCase();
+            LogicalTypeRoot logicalTypeRoot = flinkSchemaMap.get(actStarrocksField);
+            colNames.remove(actStarrocksField);
+            if ((!typesMap.containsKey(actStarrocksType) && typesMap.get(actStarrocksType).contains(logicalTypeRoot))) {
+                throw new IllegalArgumentException("Fields name or type mismatch for:" + actStarrocksField);
+            }
+        });
+        if (!colNames.isEmpty()) {
+            throw new IllegalArgumentException("Define error column " + colNames + " they does not exist Starrocks table");
+        }
+
+    }
+
+    private void checkAllColumnMode(TableSchema flinkSchema, List<Map<String, Object>> actuallyRows) {
+        if (flinkSchema.getFieldCount() != actuallyRows.size()) {
+            throw new IllegalArgumentException("Fields count of " + this.sinkOptions.getTableName() + " mismatch. \nflinkSchema["
+                + flinkSchema.getFieldNames().length + "]:"
+                + Arrays.asList(flinkSchema.getFieldNames()).stream().collect(Collectors.joining(","))
+                + "\n realTab[" + actuallyRows.size() + "]:"
+                + actuallyRows.stream().map((r) -> String.valueOf(r.get("COLUMN_NAME"))).collect(Collectors.joining(",")));
         }
         List<TableColumn> flinkCols = flinkSchema.getTableColumns();
-        for (int i = 0; i < rows.size(); i++) {
-            String starrocksField = rows.get(i).get("COLUMN_NAME").toString().toLowerCase();
-            String starrocksType = rows.get(i).get("DATA_TYPE").toString().toLowerCase();
+        for (int i = 0; i < actuallyRows.size(); i++) {
+            String starrocksField = actuallyRows.get(i).get("COLUMN_NAME").toString().toLowerCase();
+            String starrocksType = actuallyRows.get(i).get("DATA_TYPE").toString().toLowerCase();
             List<TableColumn> matchedFlinkCols = flinkCols.stream()
                 .filter(col -> col.getName().toLowerCase().equals(starrocksField) && (!typesMap.containsKey(starrocksType) || typesMap.get(starrocksType).contains(col.getType().getLogicalType().getTypeRoot())))
                 .collect(Collectors.toList());

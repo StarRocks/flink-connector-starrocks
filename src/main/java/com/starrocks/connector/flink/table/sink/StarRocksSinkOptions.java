@@ -105,6 +105,9 @@ public class StarRocksSinkOptions implements Serializable {
     public static final ConfigOption<Integer> SINK_METRIC_HISTOGRAM_WINDOW_SIZE = ConfigOptions.key("sink.metric.histogram-window-size")
             .intType().defaultValue(100).withDescription("Window size of histogram metrics.");
 
+    public static final ConfigOption<Boolean> SINK_PARTIAL_UPDATE = ConfigOptions.key("sink.partial.update")
+        .booleanType().defaultValue(false).withDescription("Enable of partial update.");
+
     public static final ConfigOption<Integer> SINK_PARALLELISM = FactoryUtil.SINK_PARALLELISM;
 
     // Sink semantic
@@ -233,6 +236,10 @@ public class StarRocksSinkOptions implements Serializable {
 
     public int getSinkHistogramWindowSize() {
         return tableOptions.get(SINK_METRIC_HISTOGRAM_WINDOW_SIZE);
+    }
+
+    public boolean getSinkPartialUpdate() {
+        return tableOptions.get(SINK_PARTIAL_UPDATE);
     }
 
     public Integer getSinkParallelism() {

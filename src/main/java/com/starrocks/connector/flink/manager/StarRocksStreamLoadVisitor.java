@@ -283,6 +283,12 @@ public class StarRocksStreamLoadVisitor implements Serializable {
             httpPut.setHeader("Expect", "100-continue");
             httpPut.setHeader("label", label);
             httpPut.setHeader("Authorization", getBasicAuthHeader(sinkOptions.getUsername(), sinkOptions.getPassword()));
+            if (this.sinkOptions.getSinkPartialUpdate()) {
+                httpPut.setHeader("partial_update", String.valueOf(this.sinkOptions.getSinkPartialUpdate()));
+                httpPut.setHeader("columns", Arrays.stream(this.fieldNames)
+                    .map(f -> String.format("`%s`", f.trim().replace("`", "")))
+                    .collect(Collectors.joining(",")));
+            }
             httpPut.setEntity(new ByteArrayEntity(data));
             httpPut.setConfig(RequestConfig.custom().setRedirectsEnabled(true).build());
             try (CloseableHttpResponse resp = httpclient.execute(httpPut)) {
