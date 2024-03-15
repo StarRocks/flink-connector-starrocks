@@ -159,6 +159,11 @@ public class StarRocksSinkOptions implements Serializable {
 
     public static final ConfigOption<Integer> SINK_PARALLELISM = FactoryUtil.SINK_PARALLELISM;
 
+    public static final ConfigOption<Boolean> SINK_WRAP_JSON_AS_ARRAY = ConfigOptions.key("sink.wrap-json-as-array")
+            .booleanType()
+            .defaultValue(true)
+            .withDescription("Whether wrap data as array or not.");
+
     // Sink semantic
     private static final Set<String> SINK_SEMANTIC_ENUMS = Arrays.stream(StarRocksSinkSemantic.values()).map(s -> s.getName()).collect(Collectors.toSet());
     // wild stream load properties' prefix
@@ -375,6 +380,10 @@ public class StarRocksSinkOptions implements Serializable {
 
     public boolean isUseUnifiedSinkApi() {
         return tableOptions.get(SINK_USE_NEW_SINK_API);
+    }
+
+    public boolean isWrapJsonAsArray() {
+        return tableOptions.get(SINK_WRAP_JSON_AS_ARRAY);
     }
 
     private void validateStreamLoadUrl() {
