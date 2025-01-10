@@ -79,6 +79,7 @@ public final class StarRocksDynamicTableSourceFactory implements DynamicTableSou
         options.add(StarRocksSourceOptions.LOOKUP_CACHE_TTL_MS);
         options.add(StarRocksSourceOptions.LOOKUP_CACHE_MAX_ROWS);
         options.add(StarRocksSourceOptions.LOOKUP_MAX_RETRIES);
+        options.add(StarRocksSourceOptions.LOOKUP_CACHE_TYPE);
         return options;
     }
 }

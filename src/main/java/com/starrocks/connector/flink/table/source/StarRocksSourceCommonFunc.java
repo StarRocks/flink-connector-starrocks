@@ -37,11 +37,11 @@ import java.util.stream.Collectors;
 
 
 public class StarRocksSourceCommonFunc {
-    
+
     private static volatile StarRocksQueryVisitor starrocksQueryVisitor;
 
     private static volatile StarRocksQueryPlanVisitor starRocksQueryPlanVisitor;
-    
+
 
     private static StarRocksQueryVisitor getStarRocksQueryVisitor(StarRocksSourceOptions sourceOptions) {
         if (null == starrocksQueryVisitor) {
@@ -84,7 +84,7 @@ public class StarRocksSourceCommonFunc {
                 curBeXTabletList.set(i, Collections.singletonList(queryInfo.getBeXTablets().get(i)));
             }
             return curBeXTabletList;
-        } 
+        }
         if (subTaskCount < beXTabletsListCount) {
             for (int i = 0; i < beXTabletsListCount; i ++) {
                 List<QueryBeXTablets> tList = curBeXTabletList.get(i%subTaskCount);
@@ -92,7 +92,7 @@ public class StarRocksSourceCommonFunc {
                 curBeXTabletList.set(i%subTaskCount, tList);
             }
             return curBeXTabletList;
-        } 
+        }
         List<QueryBeXTablets> beWithSingleTabletList = new ArrayList<>();
         queryInfo.getBeXTablets().forEach(beXTablets -> {
             beXTablets.getTabletIds().forEach(tabletId -> {
@@ -106,7 +106,7 @@ public class StarRocksSourceCommonFunc {
                 curBeXTabletList.set(i, Collections.singletonList(beWithSingleTabletList.get(i)));
             }
             return curBeXTabletList;
-        } 
+        }
         long newx = Math.round(x);
         for (int i = 0; i < subTaskCount; i ++) {
             int start = (int)(i * newx);
@@ -124,7 +124,7 @@ public class StarRocksSourceCommonFunc {
             curBxTs = beWithSingleTabletList.subList(start, end);
             Map<String, List<Long>> beXTabletsMap = new HashMap<>();
             curBxTs.forEach(curBxT -> {
-                List<Long> tablets = new ArrayList<>(); 
+                List<Long> tablets = new ArrayList<>();
                 if (beXTabletsMap.containsKey(curBxT.getBeNode())) {
                     tablets = beXTabletsMap.get(curBxT.getBeNode());
                 } else {
@@ -174,8 +174,12 @@ public class StarRocksSourceCommonFunc {
         return columnMap.values().stream().sorted(Comparator.comparing(ColumnRichInfo::getColumnIndexInSchema)).collect(Collectors.toList());
     }
 
+    public static List<ColumnRichInfo> getSelectSql(Map<String, ColumnRichInfo> columnMap) {
+        return columnMap.values().stream().sorted(Comparator.comparing(ColumnRichInfo::getColumnIndexInSchema)).collect(Collectors.toList());
+    }
+
     public static SelectColumn[] genSelectedColumns(Map<String, ColumnRichInfo> columnMap,
-                                                    StarRocksSourceOptions sourceOptions, 
+                                                    StarRocksSourceOptions sourceOptions,
                                                     List<ColumnRichInfo> columnRichInfos) {
         List<SelectColumn> selectedColumns = new ArrayList<>();
         // user selected columns from sourceOptions

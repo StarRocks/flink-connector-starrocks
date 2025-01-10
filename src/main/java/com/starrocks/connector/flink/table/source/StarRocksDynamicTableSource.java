@@ -25,11 +25,13 @@ import org.apache.flink.table.connector.source.TableFunctionProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 
 import com.starrocks.connector.flink.table.source.struct.ColumnRichInfo;
 import com.starrocks.connector.flink.table.source.struct.PushDownHolder;
 import com.starrocks.connector.flink.table.source.struct.SelectColumn;
+import org.apache.flink.table.functions.TableFunction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,32 +60,77 @@ public class StarRocksDynamicTableSource implements ScanTableSource, LookupTable
     @Override
     public ScanRuntimeProvider getScanRuntimeProvider(ScanContext scanContext) {
         StarRocksDynamicSourceFunction sourceFunction = new StarRocksDynamicSourceFunction(
-            options, flinkSchema, 
-            this.pushDownHolder.getFilter(), 
-            this.pushDownHolder.getLimit(), 
-            this.pushDownHolder.getSelectColumns(), 
+            options, flinkSchema,
+            this.pushDownHolder.getFilter(),
+            this.pushDownHolder.getLimit(),
+            this.pushDownHolder.getSelectColumns(),
             this.pushDownHolder.getQueryType());
         return SourceFunctionProvider.of(sourceFunction, true);
     }
 
     @Override
     public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
-        int[] projectedFields = Arrays.stream(context.getKeys()).mapToInt(value -> value[0]).toArray();
+        Map<String, ColumnRichInfo> columnMap = StarRocksSourceCommonFunc.genColumnMap(flinkSchema);
+        List<ColumnRichInfo> allColumnRichInfos =
+                StarRocksSourceCommonFunc.genColumnRichInfo(columnMap);
+        SelectColumn[] pushDownSelectColumns = pushDownHolder.getSelectColumns();
+        SelectColumn[] selectColumns;
+        List<ColumnRichInfo> columnRichInfos;
+        int[] projectedFields =
+                Arrays.stream(context.getKeys()).mapToInt(value -> value[0]).toArray();
         ColumnRichInfo[] filerRichInfo = new ColumnRichInfo[projectedFields.length];
-        for (int i = 0; i < projectedFields.length; i ++) {
-            ColumnRichInfo columnRichInfo = new ColumnRichInfo(
-                this.flinkSchema.getFieldName(projectedFields[i]).get(), 
-                projectedFields[i],
-                this.flinkSchema.getFieldDataType(projectedFields[i]).get()
-            );
-            filerRichInfo[i] = columnRichInfo;
+        StarRocksSourceQueryType queryType = pushDownHolder.getQueryType();
+        if (queryType == StarRocksSourceQueryType.QuerySomeColumns) {
+            columnRichInfos = new ArrayList<>();
+            selectColumns = new SelectColumn[pushDownSelectColumns.length];
+            for (int i = 0; i < pushDownSelectColumns.length; i++) {
+                ColumnRichInfo columnRichInfo =
+                        allColumnRichInfos.get(
+                                pushDownSelectColumns[i].getColumnIndexInFlinkTable());
+                columnRichInfos.add(
+                        new ColumnRichInfo(
+                                columnRichInfo.getColumnName(), i, columnRichInfo.getDataType()));
+                selectColumns[i] = new SelectColumn(columnRichInfo.getColumnName(), i);
+            }
+            for (int i = 0; i < projectedFields.length; i++) {
+                int columnIndexInFlinkTable = pushDownSelectColumns[i].getColumnIndexInFlinkTable();
+                ColumnRichInfo columnRichInfo =
+                        new ColumnRichInfo(
+                                this.flinkSchema.getFieldName(columnIndexInFlinkTable).get(),
+                                i,
+                                this.flinkSchema.getFieldDataType(columnIndexInFlinkTable).get());
+
+                filerRichInfo[i] = columnRichInfo;
+            }
+        } else {
+            columnRichInfos = allColumnRichInfos;
+            selectColumns =
+                    StarRocksSourceCommonFunc.genSelectedColumns(
+                            columnMap, this.options, allColumnRichInfos);
+            for (int i = 0; i < projectedFields.length; i++) {
+                ColumnRichInfo columnRichInfo =
+                        new ColumnRichInfo(
+                                this.flinkSchema.getFieldName(i).get(),
+                                projectedFields[i],
+                                this.flinkSchema.getFieldDataType(i).get());
+                filerRichInfo[i] = columnRichInfo;
+            }
         }
 
-        Map<String, ColumnRichInfo> columnMap = StarRocksSourceCommonFunc.genColumnMap(flinkSchema);
-        List<ColumnRichInfo> ColumnRichInfos = StarRocksSourceCommonFunc.genColumnRichInfo(columnMap);
-        SelectColumn[] selectColumns = StarRocksSourceCommonFunc.genSelectedColumns(columnMap, this.options, ColumnRichInfos);
-
-        StarRocksDynamicLookupFunction tableFunction = new StarRocksDynamicLookupFunction(this.options, filerRichInfo, ColumnRichInfos, selectColumns);
+        TableFunction<RowData> tableFunction = null;
+        StarRocksSourceOptions.CacheType lookupCacheType = options.getLookupCacheType();
+        switch (lookupCacheType) {
+            case ALL:
+                tableFunction =
+                        new StarRocksDynamicLookupFunction(
+                                this.options, filerRichInfo, columnRichInfos, selectColumns);
+                break;
+            case LRU:
+                tableFunction =
+                        new StarRocksDynamicLRUFunction(
+                                this.options, filerRichInfo, columnRichInfos, selectColumns);
+                break;
+        }
         return TableFunctionProvider.of(tableFunction);
     }
 
@@ -113,7 +160,7 @@ public class StarRocksDynamicTableSource implements ScanTableSource, LookupTable
         this.pushDownHolder.setQueryType(StarRocksSourceQueryType.QuerySomeColumns);
 
         ArrayList<String> columnList = new ArrayList<>();
-        ArrayList<SelectColumn> selectColumns = new ArrayList<SelectColumn>(); 
+        ArrayList<SelectColumn> selectColumns = new ArrayList<SelectColumn>();
         for (int index : curProjectedFields) {
             String columnName = flinkSchema.getFieldName(index).get();
             columnList.add(columnName);

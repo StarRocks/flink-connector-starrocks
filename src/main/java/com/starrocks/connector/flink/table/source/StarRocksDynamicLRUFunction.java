@@ -34,15 +34,17 @@ import org.slf4j.LoggerFactory;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class StarRocksDynamicLRUFunction extends TableFunction<RowData> {
 
     private static final Logger LOG = LoggerFactory.getLogger(StarRocksDynamicLRUFunction.class);
-    
+
     private final ColumnRichInfo[] filterRichInfos;
     private final StarRocksSourceOptions sourceOptions;
     private final ArrayList<String> filterList;
@@ -56,7 +58,7 @@ public class StarRocksDynamicLRUFunction extends TableFunction<RowData> {
     private final long cacheExpireMs;
     private final int maxRetryTimes;
 
-    public StarRocksDynamicLRUFunction(StarRocksSourceOptions sourceOptions, 
+    public StarRocksDynamicLRUFunction(StarRocksSourceOptions sourceOptions,
                                        ColumnRichInfo[] filterRichInfos,
                                        List<ColumnRichInfo> columnRichInfos,
                                        SelectColumn[] selectColumns) {
@@ -72,7 +74,7 @@ public class StarRocksDynamicLRUFunction extends TableFunction<RowData> {
         this.filterList = new ArrayList<>();
         this.dataReaderList = new ArrayList<>();
     }
-    
+
     @Override
     public void open(FunctionContext context) throws Exception {
         super.open(context);
@@ -101,14 +103,17 @@ public class StarRocksDynamicLRUFunction extends TableFunction<RowData> {
         }
         String filter = String.join(" and ", filterList);
         filterList.clear();
-        String SQL = "select * from " + sourceOptions.getDatabaseName() + "." + sourceOptions.getTableName() + " where " + filter;
+        String columns = Arrays.stream(selectColumns)
+            .map(col -> "`" + col.getColumnName() + "`")
+            .collect(Collectors.joining(","));
+        String SQL = "select " + columns + " from " + sourceOptions.getDatabaseName() + "." + sourceOptions.getTableName() + " where " + filter;
         LOG.info("LookUpFunction SQL [{}]", SQL);
         this.queryInfo = StarRocksSourceCommonFunc.getQueryInfo(this.sourceOptions, SQL);
         List<List<QueryBeXTablets>> lists = StarRocksSourceCommonFunc.splitQueryBeXTablets(1, queryInfo);
         lists.get(0).forEach(beXTablets -> {
             StarRocksSourceBeReader beReader = new StarRocksSourceBeReader(beXTablets.getBeNode(),
                     columnRichInfos,
-                                                                           selectColumns, 
+                                                                           selectColumns,
                                                                            sourceOptions);
             beReader.openScanner(beXTablets.getTabletIds(), queryInfo.getQueryPlan().getOpaqued_query_plan(), sourceOptions);
             beReader.startToRead();
@@ -132,7 +137,7 @@ public class StarRocksDynamicLRUFunction extends TableFunction<RowData> {
             });
             rows.trimToSize();
             cache.put(keyRow, rows);
-        }        
+        }
     }
 
     private void getFieldValue(Object obj, ColumnRichInfo columnRichInfo) {
@@ -147,9 +152,9 @@ public class StarRocksDynamicLRUFunction extends TableFunction<RowData> {
             filter = columnRichInfo.getColumnName() + " = '" + sdf.format(d).toString() + "'";
         }
         if (flinkTypeRoot == LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE ||
-            flinkTypeRoot == LogicalTypeRoot.TIMESTAMP_WITH_LOCAL_TIME_ZONE || 
+            flinkTypeRoot == LogicalTypeRoot.TIMESTAMP_WITH_LOCAL_TIME_ZONE ||
             flinkTypeRoot == LogicalTypeRoot.TIMESTAMP_WITH_TIME_ZONE) {
-            
+
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
             String strDateTime = dtf.format(((TimestampData)obj).toLocalDateTime());
             filter = columnRichInfo.getColumnName() + " = '" + strDateTime + "'";

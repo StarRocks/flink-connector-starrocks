@@ -53,24 +53,24 @@ public class StarRocksSourceOptions implements Serializable {
 
     public static final ConfigOption<String> TABLE_NAME = ConfigOptions.key("table-name")
             .stringType().noDefaultValue().withDescription("Table name");
-    
-    
+
+
     // optional Options
     public static final ConfigOption<Integer> SCAN_CONNECT_TIMEOUT = ConfigOptions.key("scan.connect.timeout-ms")
             .intType().defaultValue(1000).withDescription("Connect timeout");
-        
+
     public static final ConfigOption<Integer> SCAN_BATCH_ROWS = ConfigOptions.key("scan.params.batch-rows")
             .intType().defaultValue(1000).withDescription("Batch rows");
 
     public static final ConfigOption<String> SCAN_PROPERTIES = ConfigOptions.key("scan.params.properties")
             .stringType().noDefaultValue().withDescription("Reserved params for use");
-    
+
     public static final ConfigOption<Integer> SCAN_LIMIT = ConfigOptions.key("scan.params.limit")
             .intType().defaultValue(1).withDescription("The query limit, if specified.");
 
     public static final ConfigOption<Integer> SCAN_KEEP_ALIVE_MIN = ConfigOptions.key("scan.params.keep-alive-min")
             .intType().defaultValue(10).withDescription("Max keep alive time min");
-    
+
     public static final ConfigOption<Integer> SCAN_QUERTY_TIMEOUT_S = ConfigOptions.key("scan.params.query-timeout-s")
             .intType().defaultValue(600).withDescription("Query timeout for a single query");
 
@@ -88,7 +88,7 @@ public class StarRocksSourceOptions implements Serializable {
 
     public static final ConfigOption<String> SCAN_BE_HOST_MAPPING_LIST = ConfigOptions.key("scan.be-host-mapping-list")
             .stringType().defaultValue("").withDescription("List of be host mapping");
-    
+
     // lookup Options
     public static final ConfigOption<Long> LOOKUP_CACHE_MAX_ROWS = ConfigOptions.key("lookup.cache.max-rows")
             .longType().defaultValue(-1L).withDescription(
@@ -101,6 +101,12 @@ public class StarRocksSourceOptions implements Serializable {
 
     public static final ConfigOption<Integer> LOOKUP_MAX_RETRIES = ConfigOptions.key("lookup.max-retries")
             .intType().defaultValue(1).withDescription("the max retry times if lookup database failed.");
+
+    public static final ConfigOption<CacheType> LOOKUP_CACHE_TYPE =
+        ConfigOptions.key("lookup.cache-type")
+            .enumType(CacheType.class)
+            .defaultValue(CacheType.ALL)
+            .withDescription("lookup type.");
 
 
     public static final String SOURCE_PROPERTIES_PREFIX = "scan.params.";
@@ -150,7 +156,7 @@ public class StarRocksSourceOptions implements Serializable {
     public String getJdbcUrl() {
         return tableOptions.get(JDBC_URL);
     }
-    
+
     public String getUsername() {
         return tableOptions.get(USERNAME);
     }
@@ -169,8 +175,8 @@ public class StarRocksSourceOptions implements Serializable {
 
 
     // optional Options
-    public int getConnectTimeoutMs() { 
-        return tableOptions.get(SCAN_CONNECT_TIMEOUT).intValue(); 
+    public int getConnectTimeoutMs() {
+        return tableOptions.get(SCAN_CONNECT_TIMEOUT).intValue();
     }
 
     public int getBatchRows() {
@@ -236,8 +242,21 @@ public class StarRocksSourceOptions implements Serializable {
         return tableOptions.get(LOOKUP_MAX_RETRIES).intValue();
     }
 
+
     public static Builder builder() {
         return new Builder();
+    }
+
+    public CacheType getLookupCacheType() {
+        return tableOptions.get(LOOKUP_CACHE_TYPE);
+    }
+
+    /**
+     * Cache Type
+     */
+    public enum CacheType {
+        LRU,
+        ALL
     }
 
     /**
