@@ -87,6 +87,7 @@ public class StarRocksDynamicTableSinkFactory implements DynamicTableSinkFactory
         optionalOptions.add(StarRocksSinkOptions.SINK_ABORT_LINGERING_TXNS);
         optionalOptions.add(StarRocksSinkOptions.SINK_ABORT_CHECK_NUM_TXNS);
         optionalOptions.add(StarRocksSinkOptions.SINK_USE_NEW_SINK_API);
+        optionalOptions.add(StarRocksSinkOptions.SINK_IGNORE_DELETE);
         return optionalOptions;
     }
 }

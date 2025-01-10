@@ -136,6 +136,11 @@ public class StarRocksSinkOptions implements Serializable {
                     "insert the update_after row in StarRocks, and this options should be set false for this case. Note that how " +
                     "to set this options depends on the user case.");
 
+    public static final ConfigOption<Boolean> SINK_IGNORE_DELETE = ConfigOptions.key("sink.ignore.delete")
+            .booleanType().defaultValue(false).withDescription("Whether to ignore delete records, which helps retain full data " +
+                    "during Flink CDC synchronization without needing to modify the source-side Flink CDC message sending parameters. " +
+                    "This option is set to false by default.");
+
     public static final ConfigOption<Boolean> SINK_ENABLE_EXACTLY_ONCE_LABEL_GEN = ConfigOptions.key("sink.exactly-once.enable-label-gen")
             .booleanType().defaultValue(true).withDescription("Only available when using exactly-once and sink.label-prefix is set. " +
                     "When it's true, the connector will generate label in the format '{labelPrefix}-{tableName}-{subtaskIndex}-{id}'. " +
@@ -314,6 +319,10 @@ public class StarRocksSinkOptions implements Serializable {
 
     public boolean getIgnoreUpdateBefore() {
         return tableOptions.get(SINK_IGNORE_UPDATE_BEFORE);
+    }
+
+    public boolean getIgnoreDelete() {
+        return tableOptions.get(SINK_IGNORE_DELETE);
     }
 
     public static Builder builder() {
