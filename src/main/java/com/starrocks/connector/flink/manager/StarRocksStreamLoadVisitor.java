@@ -231,18 +231,18 @@ public class StarRocksStreamLoadVisitor implements Serializable {
         }
     }
 
-    private byte[] joinRows(List<byte[]> rows, int totalBytes) throws IOException {
-        if (StarRocksSinkOptions.StreamLoadFormat.CSV.equals(sinkOptions.getStreamLoadFormat())) {
-            byte[] lineDelimiter = StarRocksDelimiterParser.parse(sinkOptions.getSinkStreamLoadProperties().get("row_delimiter"), "\n").getBytes(StandardCharsets.UTF_8);
-            ByteBuffer bos = ByteBuffer.allocate(totalBytes + rows.size() * lineDelimiter.length);
-            for (byte[] row : rows) {
-                bos.put(row);
-                bos.put(lineDelimiter);
-            }
-            return bos.array();
+    private byte[] joinCsvRows(List<byte[]> rows, int totalBytes) {
+        byte[] lineDelimiter = StarRocksDelimiterParser.parse(sinkOptions.getSinkStreamLoadProperties().get("row_delimiter"), "\n").getBytes(StandardCharsets.UTF_8);
+        ByteBuffer bos = ByteBuffer.allocate(totalBytes + rows.size() * lineDelimiter.length);
+        for (byte[] row : rows) {
+            bos.put(row);
+            bos.put(lineDelimiter);
         }
+        return bos.array();
+    }
 
-        if (StarRocksSinkOptions.StreamLoadFormat.JSON.equals(sinkOptions.getStreamLoadFormat())) {
+    private byte[] joinJsonRows(List<byte[]> rows, int totalBytes) {
+        if (sinkOptions.isWrapJsonAsArray()) {
             ByteBuffer bos = ByteBuffer.allocate(totalBytes + (rows.isEmpty() ? 2 : rows.size() + 1));
             bos.put("[".getBytes(StandardCharsets.UTF_8));
             byte[] jsonDelimiter = ",".getBytes(StandardCharsets.UTF_8);
@@ -256,8 +256,24 @@ public class StarRocksStreamLoadVisitor implements Serializable {
             }
             bos.put("]".getBytes(StandardCharsets.UTF_8));
             return bos.array();
+        } else {
+            ByteBuffer bos = ByteBuffer.allocate(totalBytes);
+            for (byte[] row : rows) {
+                bos.put(row);
+            }
+            return bos.array();
         }
-        throw new RuntimeException("Failed to join rows data, unsupported `format` from stream load properties:");
+    }
+
+    private byte[] joinRows(List<byte[]> rows, int totalBytes) {
+        switch (sinkOptions.getStreamLoadFormat()) {
+            case CSV:
+                return joinCsvRows(rows, totalBytes);
+            case JSON:
+                return joinJsonRows(rows, totalBytes);
+            default:
+                throw new RuntimeException("Failed to join rows data, unsupported `format` from stream load properties:");
+        }
     }
 
     @SuppressWarnings("unchecked")
