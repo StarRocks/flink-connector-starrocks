@@ -380,7 +380,7 @@ public class StarRocksSinkOptions implements Serializable {
     private void validateStreamLoadUrl() {
         tableOptions.getOptional(LOAD_URL).ifPresent(urlList -> {
             for (String host : urlList) {
-                if (host.split(":").length < 2) {
+                if (host.split(":").length != 2) {
                     throw new ValidationException(String.format(
                             "Could not parse host '%s' in option '%s'. It should follow the format 'host_name:port'.",
                             host,

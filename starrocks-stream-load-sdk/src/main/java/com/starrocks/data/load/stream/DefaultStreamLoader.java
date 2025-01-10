@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
 import java.util.HashMap;
@@ -386,6 +387,8 @@ public class DefaultStreamLoader implements StreamLoader, Serializable {
             connection.connect();
             connection.disconnect();
             return true;
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Illegal stream load url config, please check config value.", e);
         } catch (Exception e) {
             log.warn("Failed to connect to address:{}", host, e);
             return false;
