@@ -50,6 +50,17 @@ public class StarRocksGenericRowTransformer<T> implements StarRocksIRowTransform
     public Object[] transform(T record, boolean supportUpsertDelete) {
         Object[] rowData = new Object[fieldNames.length + (supportUpsertDelete ? 1 : 0)];
         consumer.accept(rowData, record);
+
+        boolean isEmpty = true;
+        for (Object obj : rowData) {
+            if (obj != null) {
+                isEmpty = false;
+                break;
+            }
+        }
+        if (isEmpty)
+            return new Object[0];
+
         if (supportUpsertDelete && (record instanceof RowData)) {
             // set `__op` column
             rowData[rowData.length - 1] = StarRocksSinkOP.parse(((RowData)record).getRowKind()).ordinal();

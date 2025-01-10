@@ -38,6 +38,9 @@ public class StarRocksCsvSerializer implements StarRocksISerializer {
 
     @Override
     public String serialize(Object[] values) {
+        if (values.length == 0)
+            return "";
+
         StringBuilder sb = new StringBuilder();
         int idx = 0;
         for (Object val : values) {

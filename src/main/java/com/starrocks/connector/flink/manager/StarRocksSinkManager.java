@@ -230,6 +230,8 @@ public class StarRocksSinkManager implements Serializable {
             String bufferKey = String.format("%s,%s", database, table);
             StarRocksSinkBufferEntity bufferEntity = bufferMap.computeIfAbsent(bufferKey, k -> new StarRocksSinkBufferEntity(database, table, sinkOptions.getLabelPrefix()));
             for (String record : records) {
+                if (record == null || record.length() == 0)
+                    continue;
                 byte[] bts = record.getBytes(StandardCharsets.UTF_8);
                 bufferEntity.addToBuffer(bts);
             }

@@ -38,6 +38,9 @@ public class StarRocksJsonSerializer implements StarRocksISerializer {
 
     @Override
     public String serialize(Object[] values) {
+        if (values.length == 0)
+            return "";
+
         Map<String, Object> rowMap = new HashMap<>(values.length);
         int idx = 0;
         for (String fieldName : fieldNames) {
