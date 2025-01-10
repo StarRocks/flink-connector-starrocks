@@ -38,14 +38,14 @@ import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
 
-import java.sql.Date;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
 public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<RowData> {
 
@@ -56,7 +56,6 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
     private String[] columnNames;
     private DataType[] columnDataTypes;
     private Map<String, StarRocksDataType> columns;
-    private final SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd");
 
     private transient JsonWrapper jsonWrapper;
 
@@ -143,7 +142,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
                 }
                 return sValue;
             case DATE:
-                return dateFormatter.format(Date.valueOf(LocalDate.ofEpochDay(record.getInt(pos))));
+                return ISO_LOCAL_DATE.format(LocalDate.ofEpochDay(record.getInt(pos)));
             case TIMESTAMP_WITHOUT_TIME_ZONE:
                 final int timestampPrecision =((TimestampType) type).getPrecision();
                 return record.getTimestamp(pos, timestampPrecision).toLocalDateTime().toString();
@@ -205,7 +204,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
                 return data.parallelStream().map(m -> convertNestedMap((MapData)m, lt)).collect(Collectors.toList());
             }
             if (LogicalTypeRoot.DATE.equals(lt.getTypeRoot())) {
-                return data.parallelStream().map(date -> dateFormatter.format(Date.valueOf(LocalDate.ofEpochDay((Integer)date)))).collect(Collectors.toList());
+                return data.parallelStream().map(date -> ISO_LOCAL_DATE.format(LocalDate.ofEpochDay((Integer)date))).collect(Collectors.toList());
             }
             if (LogicalTypeRoot.ARRAY.equals(lt.getTypeRoot())) {
                 // traversal of the nested array
@@ -235,7 +234,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
                     continue;
                 }
                 if (LogicalTypeRoot.DATE.equals(valType.getTypeRoot())) {
-                    result.put(en.getKey().toString(), dateFormatter.format(Date.valueOf(LocalDate.ofEpochDay((Integer)en.getValue()))));
+                    result.put(en.getKey().toString(), ISO_LOCAL_DATE.format(LocalDate.ofEpochDay((Integer)en.getValue())));
                     continue;
                 }
                 if (LogicalTypeRoot.ARRAY.equals(valType.getTypeRoot())) {
