@@ -107,7 +107,7 @@ public class StarRocksDynamicSinkFunction<T> extends StarRocksDynamicSinkFunctio
             if (value instanceof StarRocksSinkRowDataWithMeta) {
                 StarRocksSinkRowDataWithMeta data = (StarRocksSinkRowDataWithMeta)value;
                 if (Strings.isNullOrEmpty(data.getDatabase()) || Strings.isNullOrEmpty(data.getTable()) || null == data.getDataRows()) {
-                    LOG.warn(String.format("json row data not fullfilled. {database: %s, table: %s, dataRows: %s}", data.getDatabase(), data.getTable(), data.getDataRows()));
+                    LOG.warn(String.format("json row data not fulfilled. {database: %s, table: %s, dataRows: %s}", data.getDatabase(), data.getTable(), data.getDataRows()));
                     return;
                 }
                 sinkManager.writeRecords(data.getDatabase(), data.getTable(), data.getDataRows());

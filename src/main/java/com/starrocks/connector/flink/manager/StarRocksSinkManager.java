@@ -423,20 +423,20 @@ public class StarRocksSinkManager implements Serializable {
             throw new IllegalArgumentException("Couldn't get the sink table's column info.");
         }
         // validate primary keys
-        List<String> primayKeys = new ArrayList<>();
+        List<String> primaryKeys = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             String keysType = rows.get(i).get("COLUMN_KEY").toString();
             if (!"PRI".equals(keysType)) {
                 continue;
             }
-            primayKeys.add(rows.get(i).get("COLUMN_NAME").toString().toLowerCase());
+            primaryKeys.add(rows.get(i).get("COLUMN_NAME").toString().toLowerCase());
         }
-        if (!primayKeys.isEmpty()) {
+        if (!primaryKeys.isEmpty()) {
             if (!constraint.isPresent()) {
                 throw new IllegalArgumentException("Primary keys not defined in the sink `TableSchema`.");
             }
-            if (constraint.get().getColumns().size() != primayKeys.size() ||
-                !constraint.get().getColumns().stream().allMatch(col -> primayKeys.contains(col.toLowerCase()))) {
+            if (constraint.get().getColumns().size() != primaryKeys.size() ||
+                !constraint.get().getColumns().stream().allMatch(col -> primaryKeys.contains(col.toLowerCase()))) {
                 throw new IllegalArgumentException("Primary keys of the flink `TableSchema` do not match with the ones from starrocks table.");
             }
             sinkOptions.enableUpsertDelete();
