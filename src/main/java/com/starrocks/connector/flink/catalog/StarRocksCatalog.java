@@ -35,8 +35,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** Responsible for reading and writing metadata such as database/table from StarRocks. */
@@ -367,6 +370,48 @@ public class StarRocksCatalog implements Serializable {
         }
     }
 
+    /**
+     * Rename columns of a table.
+     *
+     * @param databaseName Name of the database
+     * @param tableName Name of the table
+     * @param modifyColumnsTypeMap Columns to modify types
+     * @param modifyColumnsPositionMap Columns to modify positions
+     * @param timeoutSecond Timeout for a schema change on StarRocks side
+     * @throws StarRocksCatalogException in case of any runtime exception
+     */
+    public void alterModifyColumns(
+            String databaseName, String tableName, Map<String, String> modifyColumnsTypeMap,
+            Map<String, String> modifyColumnsPositionMap,
+            long timeoutSecond)
+            throws StarRocksCatalogException {
+        Preconditions.checkArgument(
+                !StringUtils.isNullOrWhitespaceOnly(databaseName),
+                "database name cannot be null or empty.");
+        Preconditions.checkArgument(
+                !StringUtils.isNullOrWhitespaceOnly(tableName),
+                "table name cannot be null or empty.");
+
+        Preconditions.checkArgument(!modifyColumnsTypeMap.isEmpty(), "Modified columns should not be empty.");
+
+        Set<String> extraneousColumns = new HashSet<>(modifyColumnsPositionMap.keySet());
+        extraneousColumns.removeAll(modifyColumnsTypeMap.keySet());
+        Preconditions.checkArgument(extraneousColumns.isEmpty(), "Position-modified columns should provide types too.");
+
+        String alterSql =
+                buildAlterModifyColumnsSql(databaseName, tableName, modifyColumnsTypeMap, modifyColumnsPositionMap, timeoutSecond);
+        try {
+            long startTimeMillis = System.currentTimeMillis();
+            executeAlter(databaseName, tableName, alterSql, timeoutSecond);
+            LOG.info("Success to modify columns from {}.{}, duration: {}ms, sql: {}",
+                    databaseName, tableName, System.currentTimeMillis() - startTimeMillis, alterSql);
+        } catch (Exception e) {
+            LOG.error("Failed to modify columns from {}.{}, sql: {}", databaseName, tableName, alterSql);
+            throw new StarRocksCatalogException(
+                    String.format("Failed to modify columns from %s.%s ", databaseName, tableName), e);
+        }
+    }
+
     private void executeAlter(
             String databaseName, String tableName, String alterSql, long timeoutSecond)
             throws StarRocksCatalogException {
@@ -600,6 +645,31 @@ public class StarRocksCatalog implements Serializable {
         String columnsStmt =
                 dropColumns.stream()
                         .map(col -> String.format("DROP COLUMN `%s`", col))
+                        .collect(Collectors.joining(", "));
+        builder.append(columnsStmt);
+        builder.append(String.format(" PROPERTIES (\"timeout\" = \"%s\")", timeoutSecond));
+        builder.append(";");
+        return builder.toString();
+    }
+
+    private String buildAlterModifyColumnsSql(
+            String databaseName, String tableName,
+            Map<String, String> modifyColumnsTypeMap,
+            Map<String, String> modifyColumnsPositionMap,
+            long timeoutSecond
+    ) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(String.format("ALTER TABLE `%s`.`%s` ", databaseName, tableName));
+        String columnsStmt =
+                modifyColumnsTypeMap.entrySet().stream()
+                        .map(col -> {
+                            String stmt = String.format("MODIFY COLUMN `%s` %s", col.getKey(), col.getValue());
+                            if (modifyColumnsPositionMap.containsKey(col.getKey())) {
+                                String position = modifyColumnsPositionMap.get(col.getKey());
+                                stmt += position.isEmpty() ? " FIRST" : String.format(" AFTER `%s`", position);
+                            }
+                            return stmt;
+                        })
                         .collect(Collectors.joining(", "));
         builder.append(columnsStmt);
         builder.append(String.format(" PROPERTIES (\"timeout\" = \"%s\")", timeoutSecond));

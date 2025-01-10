@@ -30,7 +30,9 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -134,6 +136,59 @@ public class StarRocksCatalogTest extends StarRocksITTestBase {
         List<StarRocksColumn> expectedColumns = oldTable.getColumns().stream()
                 .filter(column -> !dropColumns.contains(column.getColumnName()))
                 .collect(Collectors.toList());
+        assertEquals(expectedColumns, newTable.getColumns());
+    }
+
+    @Test
+    public void testAlterModifyColumns() throws Exception {
+        StarRocksTable oldTable = catalog.getTable(DB_NAME, tableName).orElse(null);
+        assertNotNull(oldTable);
+        Map<String, String> modifyColumnsTypeMap = new HashMap<>();
+        modifyColumnsTypeMap.put("c1", "DOUBLE");
+        modifyColumnsTypeMap.put("c2", "BOOLEAN");
+        Map<String, String> modifyColumnsPositionMap = new HashMap<>();
+        modifyColumnsPositionMap.put("c1", "c3");
+
+        catalog.alterModifyColumns(DB_NAME, tableName, modifyColumnsTypeMap, modifyColumnsPositionMap, 60);
+        StarRocksTable newTable = catalog.getTable(DB_NAME, tableName).orElse(null);
+        assertNotNull(newTable);
+
+        List<StarRocksColumn> expectedColumns = Arrays.asList(
+                new StarRocksColumn.Builder()
+                        .setColumnName("c0")
+                        .setOrdinalPosition(0)
+                        .setDataType("int")
+                        .setNullable(false)
+                        .setColumnSize(10)
+                        .setDecimalDigits(0)
+                        .setColumnComment("")
+                        .build(),
+                new StarRocksColumn.Builder()
+                        .setColumnName("c2")
+                        .setOrdinalPosition(1)
+                        .setDataType("boolean")
+                        .setDecimalDigits(0)
+                        .setNullable(true)
+                        .setColumnComment("")
+                        .build(),
+                new StarRocksColumn.Builder()
+                        .setColumnName("c3")
+                        .setOrdinalPosition(2)
+                        .setDataType("date")
+                        .setNullable(true)
+                        .setColumnComment("")
+                        .build(),
+                new StarRocksColumn.Builder()
+                        .setColumnName("c1")
+                        .setOrdinalPosition(3)
+                        .setDataType("double")
+                        .setColumnSize(15)
+                        .setDecimalDigits(15)
+                        .setNullable(true)
+                        .setColumnComment("")
+                        .build()
+        );
+
         assertEquals(expectedColumns, newTable.getColumns());
     }
 }
