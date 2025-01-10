@@ -186,7 +186,19 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
 
     private List<Object> convertNestedArray(ArrayData arrData, LogicalType type) {
         if (arrData instanceof GenericArrayData) {
-            return Lists.newArrayList(((GenericArrayData)arrData).toObjectArray());
+            RowType rType = (RowType) ((ArrayType) type).getElementType();
+            List<Object> list = Lists.newLinkedList();
+            for (Object data : ((GenericArrayData) arrData).toObjectArray()) {
+                if (data instanceof RowData) {
+                    Map<String, Object> map = Maps.newHashMap();
+                    rType.getFields().forEach(field -> map.put(field.getName(), typeConvertion(field.getType(), (RowData) data, rType.getFieldIndex(field.getName()))));
+                    list.add(map);
+                } else {
+                    list.add(data);
+                }
+            }
+
+            return list;
         }
         if (arrData instanceof BinaryArrayData) {
             LogicalType lt = ((ArrayType)type).getElementType();
@@ -197,7 +209,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
                 return data.parallelStream().map(row -> {
                     Map<String, Object> m = Maps.newHashMap();
                     rType.getFields().parallelStream().forEach(f -> m.put(f.getName(), typeConvertion(f.getType(), (RowData)row, rType.getFieldIndex(f.getName()))));
-                    return jsonWrapper.toJSONString(m);
+                    return m;
                 }).collect(Collectors.toList());
             }
             if (LogicalTypeRoot.MAP.equals(lt.getTypeRoot())) {
@@ -248,5 +260,5 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
         }
         throw new UnsupportedOperationException(String.format("Unsupported map data: %s", mapData.getClass()));
     }
-    
+
 }
