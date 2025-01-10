@@ -515,7 +515,15 @@ public class StarRocksSinkOptions implements Serializable {
                 .addCommonProperties(getSinkStreamLoadProperties());
 
         if (hasColumnMappingProperty()) {
-            defaultTablePropertiesBuilder.columns(streamLoadProps.get("columns"));
+            List<String> columns = new ArrayList<>(Arrays.asList(streamLoadProps.get("columns").split(",")));
+            if (supportUpsertDelete()) {
+                // auto add `__op` for primary key table even when user specified `sink.properties.columns`.
+                // in case user use a bitmap datatype and need set up `sink.properties.columns`, may forget to add `__op`.
+                if (columns.stream().noneMatch(it -> it.equals("__op"))) {
+                    columns.add("__op");
+                }
+            }
+            defaultTablePropertiesBuilder.columns(String.join(",", columns));
         } else if (getTableSchemaFieldNames() != null) {
             // don't need to add "columns" header in following cases
             // 1. use csv format but the flink and starrocks schemas are aligned
