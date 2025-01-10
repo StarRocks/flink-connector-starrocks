@@ -93,7 +93,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
         Object[] values = new Object[columnDataTypes.length + (supportUpsertDelete ? 1 : 0)];
         int idx = 0;
         for (DataType dataType : columnDataTypes) {
-            values[idx] = typeConvertion(dataType.getLogicalType(), transformRecord, idx);
+            values[idx] = typeConversion(dataType.getLogicalType(), transformRecord, idx);
             idx++;
         }
         if (supportUpsertDelete) {
@@ -103,7 +103,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
         return values;
     }
 
-    private Object typeConvertion(LogicalType type, RowData record, int pos) {
+    private Object typeConversion(LogicalType type, RowData record, int pos) {
         if (record.isNullAt(pos)) {
             return null;
         }
@@ -169,7 +169,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
                 RowType rType = (RowType)type;
                 Map<String, Object> m = new HashMap<>();
                 RowData row = record.getRow(pos, rType.getFieldCount());
-                rType.getFields().parallelStream().forEach(f -> m.put(f.getName(), typeConvertion(f.getType(), row, rType.getFieldIndex(f.getName()))));
+                rType.getFields().parallelStream().forEach(f -> m.put(f.getName(), typeConversion(f.getType(), row, rType.getFieldIndex(f.getName()))));
                 if (columns == null) {
                     return m;
                 }
@@ -196,7 +196,7 @@ public class StarRocksTableRowTransformer implements StarRocksIRowTransformer<Ro
                 // parse nested row data
                 return data.parallelStream().map(row -> {
                     Map<String, Object> m = Maps.newHashMap();
-                    rType.getFields().parallelStream().forEach(f -> m.put(f.getName(), typeConvertion(f.getType(), (RowData)row, rType.getFieldIndex(f.getName()))));
+                    rType.getFields().parallelStream().forEach(f -> m.put(f.getName(), typeConversion(f.getType(), (RowData)row, rType.getFieldIndex(f.getName()))));
                     return jsonWrapper.toJSONString(m);
                 }).collect(Collectors.toList());
             }
