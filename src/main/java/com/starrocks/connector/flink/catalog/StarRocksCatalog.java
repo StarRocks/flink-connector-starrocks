@@ -140,6 +140,36 @@ public class StarRocksCatalog implements Serializable {
         }
     }
 
+
+    /**
+     * Truncate a table.
+     *
+     * @param databaseName Name of the database
+     * @param tableName Name of the table
+     * @throws StarRocksCatalogException in case of any runtime exception
+     */
+    public void truncateTable(String databaseName, String tableName)
+            throws StarRocksCatalogException {
+        Preconditions.checkArgument(
+                !StringUtils.isNullOrWhitespaceOnly(databaseName),
+                "database name cannot be null or empty.");
+        Preconditions.checkArgument(
+                !StringUtils.isNullOrWhitespaceOnly(tableName),
+                "table name cannot be null or empty.");
+        String sql = buildTruncateTableSql(databaseName, tableName);
+        try {
+            executeUpdateStatement(sql);
+            LOG.info("Successful to truncate table {}.{}, sql: {}", databaseName, tableName, sql);
+        } catch (Exception e) {
+            LOG.info("Failed to truncate table {}.{}, sql: {}", databaseName, tableName, sql, e);
+            throw new StarRocksCatalogException(
+                    String.format(
+                            "Failed to truncate table %s.%s",
+                            databaseName, tableName),
+                    e);
+        }
+    }
+
     /**
      * Returns a {@link StarRocksTable} identified by the given databaseName and tableName.
      *
@@ -517,6 +547,11 @@ public class StarRocksCatalog implements Serializable {
     private String buildCreateDatabaseSql(String databaseName, boolean ignoreIfExists) {
         return String.format(
                 "CREATE DATABASE %s%s;", ignoreIfExists ? "IF NOT EXISTS " : "", databaseName);
+    }
+
+    private String buildTruncateTableSql(String databaseName, String tableName) {
+        return String.format(
+                "TRUNCATE TABLE %s.%s;", databaseName, tableName);
     }
 
     private String buildCreateTableSql(StarRocksTable table, boolean ignoreIfExists) {
