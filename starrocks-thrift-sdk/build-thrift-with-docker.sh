@@ -88,10 +88,10 @@ if [ ! -f "$TP_INSTALL_DIR/bin/thrift" ]; then
 fi
 
 cd $TP_INSTALL_DIR/bin/
+TARGET=/starrocks-thrift-sdk/target/generated-sources/thrift
+rm -rf $TARGET
+mkdir -p $TARGET
 ./thrift -r -gen java $ROOT/../gensrc/StarrocksExternalService.thrift
-if [ ! -d "$ROOT/../src/main/java/com/starrocks/thrift" ]; then
-    mkdir -p $ROOT/../src/main/java/com/starrocks/thrift
-fi
-echo $pwd
-cp -r gen-java/com/starrocks/thrift/* $ROOT/../src/main/java/com/starrocks/thrift
+mv gen-java/com $TARGET/
+rm -rf thrift
 echo "done..."
