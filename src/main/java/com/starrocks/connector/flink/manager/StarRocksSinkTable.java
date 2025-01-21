@@ -102,21 +102,8 @@ public class StarRocksSinkTable {
         }
         // validate primary keys
         List<String> primaryKeys = new ArrayList<>();
-        for (Map<String, Object> row : rows) {
-            String keysType = row.get("COLUMN_KEY").toString();
-            if (!"PRI".equals(keysType)) {
-                continue;
-            }
-            primaryKeys.add(row.get("COLUMN_NAME").toString().toLowerCase());
-        }
+        flinkSchema.getPrimaryKey().ifPresent(c -> c.getColumns().forEach(colName -> primaryKeys.add(colName.toLowerCase())));
         if (!primaryKeys.isEmpty()) {
-            if (!constraint.isPresent()) {
-                throw new IllegalArgumentException("Primary keys not defined in the sink `TableSchema`.");
-            }
-            if (constraint.get().getColumns().size() != primaryKeys.size() ||
-                    !constraint.get().getColumns().stream().allMatch(col -> primaryKeys.contains(col.toLowerCase()))) {
-                throw new IllegalArgumentException("Primary keys of the flink `TableSchema` do not match with the ones from starrocks table.");
-            }
             sinkOptions.enableUpsertDelete();
         }
 
