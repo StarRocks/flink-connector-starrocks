@@ -98,7 +98,7 @@ public class LingeringTransactionAborter {
         // there are lingering transactions with this label prefix because the job maybe
         // fail before the first checkpoint is completed, so there is no snapshot for
         // the current label prefix
-        if (currentLabelPrefix != null && !oldLabelPrefixes.contains(currentLabelPrefix)) {
+        if (currentLabelPrefix != null && !oldLabelPrefixes.isEmpty() && !oldLabelPrefixes.contains(currentLabelPrefix)) {
             abortCurrentLabelPrefix();
         }
     }
