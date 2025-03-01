@@ -119,16 +119,17 @@ public class DefaultStreamLoader implements StreamLoader, Serializable {
                         return thread;
                     });
 
+            log.info("Default Stream Loader start")
             String propertiesStr = "";
             String headerStr = "";
             try {
                 propertiesStr = objectMapper.writeValueAsString(properties);
                 headerStr = objectMapper.writeValueAsString(defaultHeaders);
             } catch (Exception e) {
-                log.warn("Failed to convert properties and headers to json", e);
+                log.debug("Failed to convert properties and headers to json", e);
             }
 
-            log.info("Default Stream Loader start, properties : {}, defaultHeaders : {}",
+            log.debug("properties : {}, defaultHeaders : {}",
                     propertiesStr, headerStr);
         }
     }
